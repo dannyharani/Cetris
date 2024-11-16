@@ -1,3 +1,8 @@
 #!/usr/bin/env sh
 
-sudo cc -o Cetris main.c -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+set -xe
+
+CFLAGS="-Wall -Wextra `pkg-config --cflags raylib`"
+CLIBS="-lraylib -lGL -lm -lpthread -ldl -lrt -lX11"
+
+cc $CFLAGS -o Cetris main.c $CLIBS
