@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "raylib.h"
+#include "Pieces.h"
 
 /* 
 * The game_grid holds the color of each game_piece. If the color is not blank {0, 0, 0, 0}, there is a piece there
@@ -12,39 +15,7 @@
 #define GAME_ROWS 20
 #define GAME_COLS 10
 
-#define O_COLOR (Color){0, 255, 255, 255};
-
 #define ARRAY_SIZE(arr) ( sizeof(arr) / sizeof(arr[0]) )
-
-Color game_grid[GAME_ROWS][GAME_COLS] = {0};
-
-typedef struct Coordinate {
-    int row;
-    int col;
-} Coordinate;
-
-typedef enum Piece_Type {
-    O_TYPE,
-    I_TYPE,
-    S_TYPE,
-    Z_TYPE,
-    L_TYPE,
-    J_TYPE,
-    T_TYPE
-} Piece_Type;
-
-typedef enum Direction {
-    LEFT,
-    RIGHT,
-    DOWN
-} Direction;
-
-typedef struct Piece {
-    Piece_Type  type;
-    short       rotation;
-    Coordinate  position;
-    Coordinate  offset;
-} Piece;
 
 Color Piece_Color[] = {
     [O_TYPE] = (Color){0,   255,    255,   255},
@@ -57,10 +28,22 @@ Color Piece_Color[] = {
 };
 
 void display_grid(int board_width, int board_height);
-void shift_grid(int row, int *frame);
+void display_piece(int board_width, int board_height);
 
-Piece get_piece(Piece_Type piece_type);
-void place_piece(Piece piece);
+bool has_collided();
+bool has_space_left();
+bool has_space_right();
+bool will_overlap();
+
+void update_info_panel(int window_width, int window_height);
+
+Piece get_piece();
+void place_piece();
+
+/* Globals */
+Color game_grid[GAME_ROWS][GAME_COLS] = {0};
+Piece current_piece;
+Piece next_piece;
 
 /* Project */
 int main() {
@@ -69,28 +52,75 @@ int main() {
 
     int frame;
 
+    srand(time(NULL));
+
     InitWindow(window_width, window_height, "Raylib C Tetris");
     SetTargetFPS(60);
-    Piece piece = get_piece(O_TYPE);
-    place_piece(piece);
+    current_piece = get_piece();
+    next_piece = get_piece();
 
     while (!WindowShouldClose()) {
         BeginDrawing();
-        {
-            frame++;
-            ClearBackground(RAYWHITE);
+        frame++;
+        
+        ClearBackground(RAYWHITE);
 
-            display_grid(window_width * 0.7, window_height);
+        display_grid(window_width * 0.7, window_height);
+        display_piece(window_width * 0.7, window_height);
+        update_info_panel(window_width, window_height);
 
-            window_height = GetRenderHeight();
-            window_width = GetRenderWidth();
+        if (frame % 30 == 0 || IsKeyPressed(KEY_DOWN)) {
+            frame = 0;
+
+            if (has_collided()) {
+                place_piece();
+                current_piece = next_piece;
+                next_piece = get_piece();
+
+            }
+
+            current_piece.offset.row += 1;
         }
+
+        if (IsKeyPressed(KEY_LEFT) && has_space_left()) {
+            current_piece.offset.col--;
+        }
+        
+        if (IsKeyPressed(KEY_RIGHT) && has_space_right()) {
+            current_piece.offset.col++;
+        }
+
+        if (IsKeyPressed(KEY_UP) && !will_overlap()) {
+            current_piece.rotation+=1;
+            current_piece.rotation %= 4;
+        }
+
+        window_height = GetRenderHeight();
+        window_width = GetRenderWidth();
+        
         EndDrawing();
     }
 
     CloseWindow(); 
     
     return 0;
+}
+
+Piece get_piece() {
+    Piece piece = (Piece){rand()%NUM_PIECE_TYPES, 0, {0, 0}};
+    
+    switch (piece.type) {
+    case O_TYPE:
+        piece.offset = (Coordinate){0,4};
+        break;
+    case I_TYPE:
+        piece.offset = (Coordinate){-1,3};
+        break;
+    default:
+        piece.offset = (Coordinate){0,4};
+    }
+    
+    return piece;
 }
 
 void display_grid(int board_width, int board_height) {
@@ -105,39 +135,102 @@ void display_grid(int board_width, int board_height) {
     }
 }
 
-void shift_grid(int row, int *frame) {
+void display_piece(int board_width, int board_height) {
+    int box_width = board_width/GAME_COLS;
+    int box_height = board_height/GAME_ROWS;
 
-    if (*frame % 30 != 0) {
-        return;
-    }
-
-    for (int i = row-1; i > 0; i--) {
-        memcpy(game_grid[i], game_grid[i-1], sizeof(game_grid[0]));
-    }
-
-    memset(game_grid[0], 0, sizeof(game_grid[0]));
-
-    *frame = 0;
-}
-
-Piece get_piece(Piece_Type piece_type) {
-    Piece piece = (Piece){O_TYPE, 0};
-
-    switch (piece_type) {
-    case O_TYPE:
-        // piece.positions[0] = (Coordinate){0, 0};
-        // piece.positions[1] = (Coordinate){0, 1};
-        // piece.positions[2] = (Coordinate){1, 0};
-        // piece.positions[3] = (Coordinate){1, 1};
-        break;
-    default:
-        break;
-    }
-    return piece;
-}
-
-void place_piece(Piece piece) {
+    Coordinate *cells = (Coordinate *)Piece_Coordinates[current_piece.type][current_piece.rotation];
+    Color color = Piece_Color[current_piece.type];
     for (int i = 0; i < 4; i++) {
-        // game_grid[piece.positions[i].row][piece.positions[i].col] = Piece_Color[piece.type];
+        int row_pos = cells[i].row + current_piece.offset.row;
+        int col_pos = cells[i].col + current_piece.offset.col;
+    
+        DrawRectangle(col_pos * box_width, row_pos * box_height, box_width, box_height, color);
+        DrawRectangleLines(col_pos * box_width, row_pos * box_height, box_width, box_height, BLACK);
+    }
+}
+
+// Todo, rethink this
+
+void update_info_panel(int window_width, int window_height) {
+    int box_width = window_width * 0.7 * 0.8/GAME_COLS;
+    int box_height = window_height * 0.8/GAME_ROWS;
+
+    Coordinate *cells = (Coordinate *)Piece_Coordinates[next_piece.type][0];
+
+    for (int i = 0; i < 4; i++) {
+        int row_pos = cells[i].row;
+        int col_pos = cells[i].col;
+
+        DrawRectangle((col_pos * box_width) + (window_width * 0.7) + box_width*1.5, (row_pos+10) * box_height, box_width, box_height, Piece_Color[next_piece.type]);
+        DrawRectangleLines((col_pos * box_width) + (window_width * 0.7 + box_width*1.5), (row_pos+10) * box_height, box_width, box_height, BLACK);
+    }
+}
+
+bool has_collided() {
+
+    Coordinate *cells = (Coordinate *) Piece_Coordinates[current_piece.type][current_piece.rotation];
+    
+    for (int i = 0; i < 4; i++) {
+        int next_grid_row   = cells[i].row + current_piece.offset.row + 1;
+        int grid_col        = cells[i].col + current_piece.offset.col;
+        if (next_grid_row >= GAME_ROWS || game_grid[next_grid_row][grid_col].a != 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool has_space_left() {
+
+    Coordinate *cells = (Coordinate *) Piece_Coordinates[current_piece.type][current_piece.rotation];
+    
+    for (int i = 0; i < 4; i++) {
+        int grid_row        = cells[i].row + current_piece.offset.row;
+        int next_grid_col   = cells[i].col + current_piece.offset.col - 1;
+        if (next_grid_col < 0 || game_grid[grid_row][next_grid_col].a != 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool has_space_right() {
+
+    Coordinate *cells = (Coordinate *) Piece_Coordinates[current_piece.type][current_piece.rotation];
+    
+    for (int i = 0; i < 4; i++) {
+        int grid_row        = cells[i].row + current_piece.offset.row;
+        int next_grid_col   = cells[i].col + current_piece.offset.col + 1;
+        if (next_grid_col >= GAME_COLS || game_grid[grid_row][next_grid_col].a != 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool will_overlap() {
+
+    Coordinate *cells = (Coordinate *) Piece_Coordinates[current_piece.type][(current_piece.rotation + 1) % 4];
+    
+    for (int i = 0; i < 4; i++) {
+        int grid_row = cells[i].row + current_piece.offset.row;
+        int grid_col = cells[i].col + current_piece.offset.col;
+        if (grid_col >= GAME_COLS || grid_col < 0 || game_grid[grid_row][grid_col].a != 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void place_piece() {
+    for (int i = 0; i < 4; i++) {
+        int row_pos = current_piece.offset.row + Piece_Coordinates[current_piece.type][current_piece.rotation][i].row;
+        int col_pos = current_piece.offset.col + Piece_Coordinates[current_piece.type][current_piece.rotation][i].col;
+        game_grid[row_pos][col_pos] = LIGHTGRAY;
     }
 }
