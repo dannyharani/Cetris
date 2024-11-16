@@ -27,6 +27,8 @@ Color Piece_Color[] = {
     [T_TYPE] = (Color){50,  50,     50,    255}
 };
 
+void game_loop(int window_widht, int window_height, int *frame);
+
 void display_grid(int board_width, int board_height);
 void display_piece(int board_width, int board_height);
 
@@ -34,8 +36,14 @@ bool has_collided();
 bool has_space_left();
 bool has_space_right();
 bool will_overlap();
+void update_lose_state();
+void check_grid();
+void clear_row(int row);
+void clear_grid();
 
-void update_info_panel(int window_width, int window_height);
+void shift_grid_from_clear();
+
+void update_info_panel(int panel_width, int panel_height, int x_offset);
 
 Piece get_piece();
 void place_piece();
@@ -44,6 +52,8 @@ void place_piece();
 Color game_grid[GAME_ROWS][GAME_COLS] = {0};
 Piece current_piece;
 Piece next_piece;
+int score;
+bool lost = false;
 
 /* Project */
 int main() {
@@ -63,23 +73,43 @@ int main() {
         BeginDrawing();
         frame++;
         
-        ClearBackground(RAYWHITE);
+        game_loop(window_width, window_height, &frame);
 
+        window_height = GetRenderHeight();
+        window_width = GetRenderWidth();
+        
+        EndDrawing();
+    }
+
+    CloseWindow(); 
+    
+    return 0;
+}
+
+void game_loop(int window_width, int window_height, int *frame) {
+    ClearBackground(RAYWHITE);
+    update_info_panel(window_width * 0.3, window_height, window_width * 0.7);
+
+    if (!lost) {
         display_grid(window_width * 0.7, window_height);
         display_piece(window_width * 0.7, window_height);
-        update_info_panel(window_width, window_height);
-
-        if (frame % 30 == 0 || IsKeyPressed(KEY_DOWN)) {
-            frame = 0;
+        
+        if (*frame % 30 == 0 || IsKeyPressed(KEY_DOWN)) {
+            *frame = 0;
 
             if (has_collided()) {
                 place_piece();
                 current_piece = next_piece;
-                next_piece = get_piece();
 
+                update_lose_state();
+                if (lost)
+                    return;
+
+                next_piece = get_piece();
+                check_grid();
             }
 
-            current_piece.offset.row += 1;
+                current_piece.offset.row += 1;
         }
 
         if (IsKeyPressed(KEY_LEFT) && has_space_left()) {
@@ -94,16 +124,14 @@ int main() {
             current_piece.rotation+=1;
             current_piece.rotation %= 4;
         }
-
-        window_height = GetRenderHeight();
-        window_width = GetRenderWidth();
-        
-        EndDrawing();
+    } else {
+        DrawText("You lost!\nPress anywhere\nto continue.", window_width/4, window_height/3, 40, BLACK);
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            clear_grid();
+            score = 0;
+            lost = false;
+        }
     }
-
-    CloseWindow(); 
-    
-    return 0;
 }
 
 Piece get_piece() {
@@ -111,13 +139,13 @@ Piece get_piece() {
     
     switch (piece.type) {
     case O_TYPE:
-        piece.offset = (Coordinate){0,4};
+        piece.offset = (Coordinate){-1,4};
         break;
     case I_TYPE:
-        piece.offset = (Coordinate){-1,3};
+        piece.offset = (Coordinate){-2,3};
         break;
     default:
-        piece.offset = (Coordinate){0,4};
+        piece.offset = (Coordinate){-1,4};
     }
     
     return piece;
@@ -150,20 +178,26 @@ void display_piece(int board_width, int board_height) {
     }
 }
 
-// Todo, rethink this
+void update_info_panel(int panel_width, int panel_height, int x_offset) {
+    int grid_height = panel_height/GAME_ROWS;
+    int grid_width = panel_width/GAME_COLS;
 
-void update_info_panel(int window_width, int window_height) {
-    int box_width = window_width * 0.7 * 0.8/GAME_COLS;
-    int box_height = window_height * 0.8/GAME_ROWS;
+    char score_str[10];
+    sprintf(score_str, "%d", score);
 
+    DrawText("Score:", x_offset + grid_width*2, grid_height*4, 35, BLUE);
+    DrawText(score_str, x_offset + grid_width*3, grid_height*5, 40, BLUE);
+
+    // Drawing the next piece
+    DrawText("Next Piece", x_offset + grid_width, grid_height*16, 25, BLUE);
     Coordinate *cells = (Coordinate *)Piece_Coordinates[next_piece.type][0];
-
     for (int i = 0; i < 4; i++) {
         int row_pos = cells[i].row;
         int col_pos = cells[i].col;
 
-        DrawRectangle((col_pos * box_width) + (window_width * 0.7) + box_width*1.5, (row_pos+10) * box_height, box_width, box_height, Piece_Color[next_piece.type]);
-        DrawRectangleLines((col_pos * box_width) + (window_width * 0.7 + box_width*1.5), (row_pos+10) * box_height, box_width, box_height, BLACK);
+        DrawRectangle(x_offset + (grid_width * (col_pos + next_piece.offset.col)), (grid_width * row_pos) + (grid_height * 17), grid_width, grid_width, Piece_Color[next_piece.type]);
+        DrawRectangleLines(x_offset + (grid_width * (col_pos + next_piece.offset.col)), (grid_width * row_pos) + (grid_height * 17), grid_width, grid_width, BLACK);
+
     }
 }
 
@@ -227,10 +261,86 @@ bool will_overlap() {
     return false;
 }
 
+void update_lose_state() {
+    Coordinate *cells = (Coordinate *) Piece_Coordinates[current_piece.type][(current_piece.rotation)];
+    
+    for (int i = 0; i < 4; i++) {
+        int grid_row = cells[i].row + current_piece.offset.row;
+        int grid_col = cells[i].col + current_piece.offset.col;
+        if (grid_col >= GAME_COLS || grid_col < 0 || game_grid[grid_row][grid_col].a != 0) {
+            lost = true;
+            break;
+        }
+    }
+}
+
 void place_piece() {
     for (int i = 0; i < 4; i++) {
         int row_pos = current_piece.offset.row + Piece_Coordinates[current_piece.type][current_piece.rotation][i].row;
         int col_pos = current_piece.offset.col + Piece_Coordinates[current_piece.type][current_piece.rotation][i].col;
         game_grid[row_pos][col_pos] = LIGHTGRAY;
+    }
+}
+
+void check_grid() {
+    bool clear_table = false;
+    for (int row = GAME_ROWS - 1; row >= 0 ; row--) {
+        bool row_is_full = true;
+        for (int col = 0; col < GAME_COLS; col++) {
+            if (game_grid[row][col].a == 0){
+                row_is_full = false;
+                break;
+            }
+        }
+
+        if (row_is_full) {
+            clear_row(row);
+            score+=100;
+            clear_table = true;
+        }
+    }
+
+    if (clear_table)
+        shift_grid_from_clear();
+}
+
+void clear_row(int row) {
+    memset(game_grid[row], 0, sizeof(game_grid[row]));
+}
+
+void clear_grid() {
+    for (int row = 0; row < GAME_ROWS; row++) {
+        clear_row(row);
+    }
+}
+
+void shift_grid_from_clear() {
+    int floor = GAME_ROWS;
+    bool floor_taken = false;
+    int ceil = 0;
+
+    Color empty_row[GAME_COLS] = {0};
+
+    for (int row = GAME_ROWS - 1; row >= 0; row--) {
+        bool row_is_empty = !memcmp(game_grid[row], empty_row, sizeof(empty_row));
+
+        if (row_is_empty && !floor_taken) {
+            floor = row;
+            floor_taken = true;
+        }
+
+        if (!row_is_empty && floor_taken) {
+            ceil = row;
+            break;
+        }
+    }
+
+    int diff = floor - ceil;
+    for (int row = floor; row >= 0; row--) {
+        if (row - diff >= 0) {
+            memcpy(game_grid[row], game_grid[row-diff], sizeof(game_grid[row]));
+        } else {
+            memset(game_grid[row], 0, sizeof(game_grid[row]));
+        }
     }
 }
