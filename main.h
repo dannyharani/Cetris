@@ -7,7 +7,8 @@
 #define GAME_ROWS 20
 #define GAME_COLS 10
 
-#define ARRAY_SIZE(arr) ( sizeof(arr) / sizeof(arr[0]) )
+#define ARRAY_SIZE(arr) ( sizeof(arr) )
+#define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr)[0])
 
 extern Color Piece_Color[];
 
