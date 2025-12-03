@@ -14,6 +14,25 @@ Color Piece_Color[] = {
     [T_TYPE] = (Color){50,  50,     50,    255}
 };
 
+typedef Color RenderGrid[GAME_ROWS][GAME_COLS];
+
+void game_loop(GameState *state, RenderGrid *render_grid, int window_widht, int window_height, int *frame);
+void display_grid(RenderGrid *render_grid, int board_width, int board_height);
+void display_piece(GameState *state, int board_width, int board_height);
+bool has_collided(GameState *state);
+bool has_space_left(GameState *state);
+bool has_space_right(GameState *state);
+bool will_overlap(GameState *state);
+void update_lose_state(GameState *state);
+int check_grid(GameState *state, RenderGrid *render_grid);
+void clear_row(GameState *state, RenderGrid *render_grid, int row);
+void clear_grid(GameState *state, RenderGrid *render_grid);
+int get_shadow_row(GameState *state);
+void shift_grid_from_clear();
+void update_info_panel(GameState *state, int panel_width, int panel_height, int x_offset);
+void place_piece(GameState *state, RenderGrid *render_grid);
+
+
 int FRAMES_TO_ACTIVATE_SPEED = 20;
 int FRAMES_HELD_DOWN = 0;
 
@@ -106,7 +125,7 @@ void make_move(GameState *state, RenderGrid *render_grid, MOVE move) {
                 if (state->lost)
                     return;
 
-                state->next_piece = get_piece(state); // To be from bag of all seven pieces no replacement
+                state->next_piece = get_piece(state);
                 check_grid(state, render_grid);
             } else {
                 state->current_piece.offset.row += 1;
@@ -392,7 +411,7 @@ void place_piece(GameState *state, RenderGrid *render_grid) {
     }
 }
 
-void check_grid(GameState *state, RenderGrid *render_grid) {
+int check_grid(GameState *state, RenderGrid *render_grid) {
     int rows_cleared = 0;
 
     for (int row = GAME_ROWS - 1; row >= 0 ; row--) {
@@ -420,7 +439,7 @@ void check_grid(GameState *state, RenderGrid *render_grid) {
         }
     }
 
-    state->GameHeuristics.lines_cleared = rows_cleared;
+    return rows_cleared;
 }
 
 void clear_row(GameState *state, RenderGrid *render_grid, int row) {

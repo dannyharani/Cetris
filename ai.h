@@ -1,4 +1,5 @@
 #pragma once
+#include "main.h"
 
 typedef struct GameHeuristics {
     int aggregate_heights;
@@ -7,6 +8,10 @@ typedef struct GameHeuristics {
     int lines_cleared;
 } GameHeuristics;
 
-struct GameState;
-void get_heuristics(struct GameState *state);
+typedef struct AiGameState {
+    GameState game;
+    GameHeuristics heuristics;
+} AiGameState;
+
+void get_heuristics(AiGameState *state);
 void instantiate_games(int count);

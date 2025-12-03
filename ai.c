@@ -1,12 +1,11 @@
 #include "ai.h"
 #include "main.h"
 #include <stdlib.h>
-#include <math.h>
 
-GameState *ai_games = NULL;
+AiGameState *ai_games = NULL;
 int ai_game_count = 0;
 
-void get_heuristics(GameState *state) {
+void get_heuristics(AiGameState *state) {
     /*
      * What should we consider a hole?
      * is the following 1 hole, or 3:
@@ -28,10 +27,10 @@ void get_heuristics(GameState *state) {
 
         for (int row = 0; row < GAME_ROWS; row++) {
 
-            if (state->cell_occupied[row][col] && !ceiling_exists) {
+            if (state->game.cell_occupied[row][col] && !ceiling_exists) {
                 ceiling_exists = true;
                 col_height = GAME_ROWS - row;
-            } else if (ceiling_exists && !state->cell_occupied[row][col]) {
+            } else if (ceiling_exists && !state->game.cell_occupied[row][col]) {
                 num_holes++;
             }
         }
@@ -43,9 +42,9 @@ void get_heuristics(GameState *state) {
         bumpiness += abs(heights[col] - heights[col+1]);
     }
 
-    state->GameHeuristics.aggregate_heights = agg_height;
-    state->GameHeuristics.bumpiness = bumpiness;
-    state->GameHeuristics.holes = num_holes;
+    state->heuristics.aggregate_heights = agg_height;
+    state->heuristics.bumpiness = bumpiness;
+    state->heuristics.holes = num_holes;
 }
 
 void instantiate_games(int count) {
@@ -54,24 +53,14 @@ void instantiate_games(int count) {
     }
 
     ai_game_count = count;
-    ai_games = (GameState *)malloc(sizeof(GameState) * count);
+    ai_games = (AiGameState *)malloc(sizeof(AiGameState) * count);
 
     for (int i = 0; i < count; i++) {
-        // Initialize game state
-        GameState *game = &ai_games[i];
-        
-        // Zero out the struct
-        *game = (GameState){0};
-        
-        // Initialize specific fields as in main.c
-        // cell_occupied is 0
-        // current_piece, next_piece need initialization
-        // score 0, lost false
-        // piece_bag needs init? get_piece handles bag init if empty.
-        
-        game->pieces_in_bag = 0; // get_piece will refill
-        
-        game->current_piece = get_piece(game);
-        game->next_piece = get_piece(game);
+        AiGameState *state = &ai_games[i];
+
+        *state = (AiGameState){0};
+
+        state->game.current_piece = get_piece(&state->game);
+        state->game.next_piece = get_piece(&state->game);
     }
 }
