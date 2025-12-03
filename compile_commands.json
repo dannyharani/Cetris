@@ -1,0 +1,17 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-Wall",
+      "-Wextra",
+      "-I/usr/local/include",
+      "-o",
+      "Cetris",
+      "main.c"
+    ],
+    "directory": "/home/danni/ws/Cetris",
+    "file": "/home/danni/ws/Cetris/main.c",
+    "output": "/home/danni/ws/Cetris/Cetris"
+  }
+]
